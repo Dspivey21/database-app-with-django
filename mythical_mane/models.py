@@ -220,3 +220,46 @@ class VisitProcedure(models.Model):
         managed = False
         db_table = 'visit_procedure'
         unique_together = (('visit', 'procedure', 'performed_at'),)
+
+
+# ---------------------------------------------------------------------------
+# Django-OWNED model (Mission 7).
+#
+# Unlike everything above, this model is NOT marked managed = False — Django
+# DOES own this table. `python manage.py makemigrations` followed by
+# `python manage.py migrate` will create the underlying `care_note` table in
+# Supabase, demonstrating that we can mix legacy/unmanaged tables and
+# Django-owned tables in the same database.
+# ---------------------------------------------------------------------------
+
+class CareNote(models.Model):
+    """A free-form clinical note attached to a patient.
+
+    This is a Django-managed table (created by migration 0001_initial). It links
+    to the unmanaged Patient model, which is fine — Django will create the FK
+    constraint pointing at patient.patient_id when the migration runs.
+    """
+    patient = models.ForeignKey(
+        Patient,
+        on_delete=models.CASCADE,
+        related_name="care_notes",
+    )
+    note = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    follow_up_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Optional date by which someone should follow up.",
+    )
+    resolved = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "care_note"
+        ordering = ("-created_at",)
+        verbose_name = "Care note"
+        verbose_name_plural = "Care notes"
+
+    def __str__(self):
+        marker = "[resolved] " if self.resolved else ""
+        snippet = (self.note[:60] + "...") if len(self.note) > 60 else self.note
+        return f"{marker}{self.patient.name}: {snippet}"

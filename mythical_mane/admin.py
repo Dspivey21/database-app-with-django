@@ -14,6 +14,7 @@ from django.contrib import admin
 
 from .models import (
     Ability,
+    CareNote,
     Diagnosis,
     Employee,
     Invoice,
@@ -146,3 +147,19 @@ class PaymentAdmin(admin.ModelAdmin):
     list_filter = ("payment_method",)
     date_hierarchy = "payment_date"
     raw_id_fields = ("invoice",)
+
+
+# Mission 7: the Django-owned CareNote model.
+@admin.register(CareNote)
+class CareNoteAdmin(admin.ModelAdmin):
+    list_display = ("id", "patient", "short_note", "created_at", "follow_up_date", "resolved")
+    list_filter = ("resolved",)
+    search_fields = ("note", "patient__name")
+    list_select_related = ("patient",)
+    date_hierarchy = "created_at"
+    raw_id_fields = ("patient",)
+    readonly_fields = ("created_at",)
+
+    @admin.display(description="Note", ordering="note")
+    def short_note(self, obj):
+        return (obj.note[:60] + "...") if len(obj.note) > 60 else obj.note

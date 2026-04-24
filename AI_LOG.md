@@ -187,3 +187,47 @@ made the empty-state message a dashed-border card rather than just a paragraph.
 - Page contains the "60 patients" badge text and the Tailwind CDN script tag.
 - Confirmed the page survives missing `dob` (template uses `{% if patient.dob %}`
   with an "unknown" italic fallback).
+
+---
+
+## Mission 7: Django-owned `CareNote` model + migration
+
+**Prompt:** Asked Claude to add a Django-managed `CareNote` model attached to
+Patient (note text, created timestamp, optional follow-up date, resolved flag),
+generate the migration, run it against Supabase, and register the model in the
+admin.
+
+**Result:** Claude:
+- Added `CareNote` to `mythical_mane/models.py` with explicit `db_table = "care_note"`,
+  `ordering = ("-created_at",)`, FK `patient` → Patient with
+  `on_delete=CASCADE` and `related_name="care_notes"`. Crucially, no
+  `managed = False` — this model IS owned by Django.
+- Ran `python manage.py makemigrations mythical_mane` → `0001_initial.py`. The
+  output looked alarming because it said "Create model X" for every Mythical
+  Mane model, but inspecting the file shows every unmanaged model has
+  `'managed': False` in its options block, meaning `migrate` skips the database
+  operation and only updates Django's migration state. The only operation that
+  actually hits the DB is `CareNote`.
+- Ran `python manage.py migrate mythical_mane` → applied 0001_initial cleanly.
+- Registered `CareNote` in `admin.py` with `list_display`, `list_filter`,
+  `search_fields`, `date_hierarchy="created_at"`, `raw_id_fields=("patient",)`,
+  and a custom `short_note` display method.
+
+**My changes:** Accepted Claude's design as-is. The `CASCADE` choice was
+deliberate — if a patient is deleted, their care notes should go with them.
+
+**Verification:** Ran a Python harness that:
+1. Queried `information_schema.columns` to confirm `care_note` has the right
+   columns: `id`, `note`, `created_at`, `follow_up_date`, `resolved`,
+   `patient_id`. Types and nullability all match the model.
+2. Queried `information_schema.table_constraints` and confirmed the FK
+   constraint `care_note_patient_id_c9341b34_fk_patient_patient_id` exists,
+   pointing to the unmanaged `patient` table.
+3. Confirmed `Patient.objects.count()` is still 60 — no unmanaged tables were
+   touched by the migration.
+4. Created a CareNote via the ORM (`CareNote.objects.create(patient=…, note=…)`)
+   and got back `id=1, created_at=2026-04-24 01:54:31...`. Then deleted it.
+
+The visual confirmation step (taking a screenshot of the new `care_note` table
+in Supabase, plus creating two records via the Django admin) happens in the
+Codespace.
