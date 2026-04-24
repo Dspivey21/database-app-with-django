@@ -151,3 +151,39 @@ asks for. No edits.
 - The next visual verification (logging into `/admin/` and confirming each model
   is listed, then editing a record and seeing the change in Supabase) happens
   when the Django dev server is run in the Codespace.
+
+---
+
+## Mission 6: Patient list page
+
+**Prompt:** Asked Claude to build the `/patients/` page end-to-end: view, URL
+route, and Tailwind-styled template that lists patients with their owner and
+universe. Specifically asked it to use `select_related` so the page doesn't fire
+one query per patient.
+
+**Result:** Claude produced:
+- `mythical_mane/views.py::patient_list` — a function-based view that queries
+  `Patient.objects.select_related("owner", "universe").order_by("universe__name", "name")`,
+  passes the queryset and a `patient_count` to the template.
+- `mythical_mane/urls.py` — defines the `/patients/` route with namespace
+  `mythical_mane`.
+- `hello_world/urls.py` — `include("mythical_mane.urls")` mounted at the root.
+- `mythical_mane/templates/mythical_mane/patient_list.html` — Tailwind via CDN
+  (per the assignment's note that CDN is fine), responsive table with name,
+  color, date of birth, owner, and universe; styled badges for the universe and
+  patient count; em-dash fallbacks for blank colors and "unknown" for blank DOBs.
+
+**My changes:** Accepted Claude's structure. Touched up minor things — used
+`order_by("universe__name", "name")` so universes group together visually, and
+made the empty-state message a dashed-border card rather than just a paragraph.
+
+**Verification:** Wrote a script that called the view directly via Django's
+`RequestFactory` and counted SQL queries through `connection.queries`:
+- HTTP status: 200
+- Response length: 70 KB
+- **Total queries: 2** (one `COUNT(*)` for the header badge, one big SELECT
+  with the JOIN). Definitely no N+1 — without `select_related` this would be 61
+  queries for 60 patients.
+- Page contains the "60 patients" badge text and the Tailwind CDN script tag.
+- Confirmed the page survives missing `dob` (template uses `{% if patient.dob %}`
+  with an "unknown" italic fallback).
