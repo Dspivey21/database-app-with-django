@@ -71,3 +71,48 @@ Way faster than continuing to chase encoding bugs.
 **Verification:** After the password reset and updating both `DATABASE_URL`
 locations (Windows User env var + GitHub Codespaces secret), the psycopg
 connection test succeeded and migrations ran cleanly.
+
+---
+
+## Mission 4: Generate models with `inspectdb`
+
+**Prompt:** Asked Claude to (1) create the `mythical_mane` Django app, (2) add it
+to `INSTALLED_APPS`, (3) run `python manage.py inspectdb > mythical_mane/models.py`,
+and (4) review and explain the generated models.
+
+**Result:** Claude scaffolded the app, registered it, and ran `inspectdb`. The
+generated file had 307 lines and included 25 model classes — but ~10 of those
+were Django's own internal tables (`AuthGroup`, `AuthUser`, `AuthPermission`,
+`AuthUserGroups`, `AuthUserUserPermissions`, `AuthGroupPermissions`,
+`DjangoAdminLog`, `DjangoContentType`, `DjangoMigrations`, `DjangoSession`),
+which Django already defines through `django.contrib.auth`,
+`django.contrib.admin`, `django.contrib.contenttypes`, and
+`django.contrib.sessions`. Having those duplicated in our app would be confusing
+and serve no purpose.
+
+Claude also explained the `managed = False` lines: every Mythical Mane table was
+created by `mm-schema.sql` directly in Supabase, so Django shouldn't try to
+create or alter them. Flipping `managed = True` would make Django attempt to
+take ownership and would break things.
+
+**My changes:**
+- Removed all 10 Django-internal model classes — kept only the 15 Mythical Mane
+  domain models (Ability, Diagnosis, Employee, Invoice, LineItem, Observation,
+  Owner, Patient, PatientAbility, Payment, ProcedureDefinition, Universe, Visit,
+  VisitDiagnosis, VisitProcedure).
+- Added a header comment explaining what was trimmed and why `managed = False`
+  must be preserved.
+- Added `__str__` methods on the user-facing models (Patient, Owner, Universe,
+  Employee, Diagnosis, ProcedureDefinition, Visit, Ability) so the admin and
+  shell show readable labels instead of `<Patient: Patient object (1)>`.
+- Added `verbose_name_plural` for models whose default plural form is wrong
+  ("Diagnosises", "Visit diagnosises", etc.).
+
+**Verification:**
+- `python manage.py check` → no issues.
+- ORM smoke test: `Patient.objects.count()` returned 60, matching what Supabase
+  showed in Mission 2 (also Owner=36, Universe=3, Employee=10, Visit=120).
+- Pulled three sample patients via
+  `Patient.objects.select_related('owner', 'universe')[:3]` and got real
+  Mythical Mane data: Phoenix 001 (Ember) owned by Ariadne Mooncrest 01 in
+  Olympus Court, etc.
