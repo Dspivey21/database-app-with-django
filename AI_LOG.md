@@ -209,8 +209,8 @@ model it picked:
    make sure the `raw_id_fields` for `patient` and `vet` rendered the
    magnifying-glass picker (instead of a giant 60-row dropdown).
 4. Took a screenshot of the Patient change list (saved as
-   `Mission 5 Screenshot.png`) — shows the styled admin with the columns from
-   `list_display`.
+   `screenshots/Mission 5 Screenshot.png`) — shows the styled admin with the
+   columns from `list_display`.
 5. Edited one Patient and changed its `color` field to confirm the write path.
    Hit Save, then opened Supabase Table Editor → `patient` table → confirmed
    the new color value showed up there. This proves Django admin reads from AND
@@ -269,8 +269,8 @@ one query per patient.
 4. Scrolled down looking for any row with a missing `dob` or `color` to make
    sure the fallback rendering ("unknown" italic / em-dash) actually fired
    instead of the page crashing. Saw both fallbacks appear on real rows.
-5. Took a screenshot of the rendered page (saved as `Mission 6 Screenshot.png`)
-   for the deliverable.
+5. Took a screenshot of the rendered page (saved as
+   `screenshots/Mission 6 Screenshot.png`) for the deliverable.
 
 ---
 
@@ -347,4 +347,5 @@ admin.
    rows appeared with the right `note` text, the `created_at` timestamps
    matched roughly when I clicked Save, and the `resolved` flags were `true`
    for the wing trim and `false` for the flame intensity note. Took a
-   screenshot (saved as `Mission 7 Screenshot.png`) for the deliverable.
+   screenshot (saved as `screenshots/Mission 7 Screenshot.png`) for the
+   deliverable.
