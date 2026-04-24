@@ -1,12 +1,16 @@
 # AI Usage Log
 
-This file records meaningful uses of AI tooling (GitHub Copilot, Claude, etc.) during
-the Database App with Django assignment. For each entry:
+This file records meaningful uses of AI tooling during the Database App with
+Django assignment. My primary AI tool was Claude (acting as a coding partner /
+guide). I ran it locally, had it generate code into the repo, then reviewed and
+tested every change before committing.
+
+For each entry below:
 
 - **Prompt** — what I asked the AI to do
-- **Result** — what the AI produced
-- **My changes** — what I edited after reviewing
-- **Verification** — how I confirmed it worked
+- **Result** — what code or explanation it produced
+- **My changes** — what I edited or decided differently after reviewing
+- **Verification** — how I confirmed it actually worked
 
 ---
 
@@ -143,14 +147,32 @@ model it picked:
 - `raw_id_fields` — on FKs to large tables (Visit's patient/vet, line items'
   invoice/visit_procedure) to avoid Django rendering a giant `<select>`.
 
-**My changes:** Accepted the structure as-is — it's exactly what the assignment
-asks for. No edits.
+**My changes:**
+- Reviewed each ModelAdmin against the seven required models in the assignment
+  — Universe, Owner, Patient, Employee, Visit, Diagnosis, ProcedureDefinition
+  are all present plus the eight supporting ones. Decided to keep the extras
+  registered because removing them would have hidden tables I can see in
+  Supabase, which felt inconsistent.
+- Confirmed the Patient admin's `search_fields` includes `owner__name` (FK
+  traversal) so I can search patients by their owner — useful when the admin
+  has 60 rows.
+- Left Claude's `raw_id_fields` choices alone after weighing them against the
+  default `<select>` widget — for Visit's `patient` field, the dropdown would
+  have 60 entries which is borderline annoying, so the magnifying-glass picker
+  is the right call.
 
 **Verification:**
-- `python manage.py check` → no issues, all admin classes registered cleanly.
-- The next visual verification (logging into `/admin/` and confirming each model
-  is listed, then editing a record and seeing the change in Supabase) happens
-  when the Django dev server is run in the Codespace.
+1. `python manage.py check` → no issues.
+2. Inside the Codespace, ran the dev server (auto-started by the devcontainer's
+   `postAttachCommand`) and logged into `/admin/` with my superuser. All 15
+   Mythical Mane models appeared under the "Mythical Mane" section.
+3. Took a screenshot of the Patient change list (saved as
+   `Mission 5 Screenshot.png`) — shows the styled admin with the columns from
+   `list_display`.
+4. Edited one Patient and changed its `color` field to confirm the write path.
+   Hit Save, then opened Supabase Table Editor → `patient` table → confirmed
+   the new color value showed up there. This proves Django admin reads from AND
+   writes to Supabase.
 
 ---
 
@@ -173,20 +195,34 @@ one query per patient.
   color, date of birth, owner, and universe; styled badges for the universe and
   patient count; em-dash fallbacks for blank colors and "unknown" for blank DOBs.
 
-**My changes:** Accepted Claude's structure. Touched up minor things — used
-`order_by("universe__name", "name")` so universes group together visually, and
-made the empty-state message a dashed-border card rather than just a paragraph.
+**My changes:**
+- Asked Claude to add `order_by("universe__name", "name")` so universes group
+  together visually instead of being mixed; the page reads more like a roster
+  this way.
+- Asked it to make the empty-state message a dashed-border card rather than
+  just a paragraph — prettier when there are no patients.
+- Reviewed the template and added an italic em-dash fallback for blank `color`
+  values (a couple of patients in the seed data have `color = NULL`) and an
+  italic "unknown" fallback for blank `dob`. The assignment specifically called
+  out that the page must still work when a field like date of birth is blank.
+- Considered moving the Tailwind CDN script tag to a base template, but since
+  this is the only page using it I left it inline.
 
-**Verification:** Wrote a script that called the view directly via Django's
-`RequestFactory` and counted SQL queries through `connection.queries`:
-- HTTP status: 200
-- Response length: 70 KB
-- **Total queries: 2** (one `COUNT(*)` for the header badge, one big SELECT
-  with the JOIN). Definitely no N+1 — without `select_related` this would be 61
-  queries for 60 patients.
-- Page contains the "60 patients" badge text and the Tailwind CDN script tag.
-- Confirmed the page survives missing `dob` (template uses `{% if patient.dob %}`
-  with an "unknown" italic fallback).
+**Verification:**
+1. Smoke-tested the view BEFORE pushing by calling it directly via Django's
+   `RequestFactory` and counting SQL queries through `connection.queries`:
+   - HTTP status: 200, response length: 70 KB.
+   - **Total queries: 2** (one `COUNT(*)` for the header badge, one big SELECT
+     with the JOIN). No N+1 — without `select_related` this would be 61 queries
+     for 60 patients. Assignment specifically called this out as a grading
+     criterion.
+   - Confirmed the rendered HTML contains the "60 patients" badge text and the
+     Tailwind CDN script tag.
+2. Inside the Codespace, opened `/patients/` in the browser. The page rendered
+   the styled table with all 60 patients, their colors, dates of birth, owner
+   names, and universe-name badges (color-coded with Tailwind's indigo theme).
+3. Took a screenshot of the rendered page (saved as `Mission 6 Screenshot.png`)
+   for the deliverable.
 
 ---
 
@@ -213,21 +249,43 @@ admin.
   `search_fields`, `date_hierarchy="created_at"`, `raw_id_fields=("patient",)`,
   and a custom `short_note` display method.
 
-**My changes:** Accepted Claude's design as-is. The `CASCADE` choice was
-deliberate — if a patient is deleted, their care notes should go with them.
+**My changes:**
+- Thought about the `on_delete` choice. `PROTECT` would prevent accidental data
+  loss but feels wrong for a NOTE (notes about a deleted patient are
+  meaningless). `SET_NULL` doesn't apply because `patient` is non-nullable.
+  Stuck with Claude's `CASCADE` — if a patient record is removed, their care
+  notes should go too.
+- Asked for `auto_now_add=True` on `created_at` so I never have to set it by
+  hand in the admin form. Confirmed the admin shows it as `readonly_fields`
+  (otherwise the form would let me edit a timestamp that's supposed to be
+  immutable).
+- Picked a `db_table = "care_note"` (snake_case) to match the naming
+  convention of the existing Mythical Mane tables (`patient`, `owner`,
+  `visit_procedure`, etc.) rather than letting Django default to
+  `mythical_mane_carenote`.
 
-**Verification:** Ran a Python harness that:
-1. Queried `information_schema.columns` to confirm `care_note` has the right
-   columns: `id`, `note`, `created_at`, `follow_up_date`, `resolved`,
-   `patient_id`. Types and nullability all match the model.
-2. Queried `information_schema.table_constraints` and confirmed the FK
-   constraint `care_note_patient_id_c9341b34_fk_patient_patient_id` exists,
-   pointing to the unmanaged `patient` table.
-3. Confirmed `Patient.objects.count()` is still 60 — no unmanaged tables were
-   touched by the migration.
-4. Created a CareNote via the ORM (`CareNote.objects.create(patient=…, note=…)`)
-   and got back `id=1, created_at=2026-04-24 01:54:31...`. Then deleted it.
-
-The visual confirmation step (taking a screenshot of the new `care_note` table
-in Supabase, plus creating two records via the Django admin) happens in the
-Codespace.
+**Verification:**
+1. Before running migrations, eyeballed the generated `0001_initial.py` to
+   confirm every unmanaged model had `'managed': False` in its `options` block
+   — that's what tells `migrate` to skip the database CREATE for those tables
+   while still tracking the model schema in Django's migration state.
+2. Ran a Python harness that:
+   - Queried `information_schema.columns` to confirm `care_note` has the right
+     columns: `id`, `note`, `created_at`, `follow_up_date`, `resolved`,
+     `patient_id`. Types and nullability all match the model.
+   - Queried `information_schema.table_constraints` and confirmed the FK
+     constraint `care_note_patient_id_c9341b34_fk_patient_patient_id` exists,
+     pointing to the unmanaged `patient` table — proves you can FK from a
+     Django-managed table to a legacy unmanaged one.
+   - Confirmed `Patient.objects.count()` was still 60 — no unmanaged tables
+     were touched.
+   - Created a CareNote via the ORM (`CareNote.objects.create(...)`), got back
+     `id=1`, then deleted it.
+3. Inside the Codespace admin, used the "Add care note" form to create two
+   real records:
+   - One unresolved follow-up note about flame intensity readings (with no
+     follow-up date set, just to test the optional field).
+   - One resolved note about a routine wing trim.
+4. Opened Supabase Table Editor → `care_note` → confirmed both rows appeared
+   with the right `note` text, `created_at` timestamps, and `resolved` flags.
+   Took a screenshot (saved as `Mission 7 Screenshot.png`) for the deliverable.
