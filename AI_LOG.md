@@ -116,3 +116,38 @@ take ownership and would break things.
   `Patient.objects.select_related('owner', 'universe')[:3]` and got real
   Mythical Mane data: Phoenix 001 (Ember) owned by Ariadne Mooncrest 01 in
   Olympus Court, etc.
+
+---
+
+## Mission 5: Register models with Django admin
+
+**Prompt:** Asked Claude to register all the Mythical Mane models in
+`mythical_mane/admin.py` with useful `list_display`, `search_fields`,
+`list_filter`, and `date_hierarchy` settings, and to explain its assumptions.
+
+**Result:** Claude registered all 15 domain models (the assignment only requires
+seven — Universe, Owner, Patient, Employee, Visit, Diagnosis,
+ProcedureDefinition — but registering them all gives a complete admin). For each
+model it picked:
+- `list_display` — primary key plus the few columns most useful for scanning
+  the change list at a glance.
+- `search_fields` — text columns plus traversal into FK names (e.g. on Patient,
+  `"owner__name"` so I can search for a patient by their owner's name).
+- `list_filter` — low-cardinality columns like Patient's `universe`, Employee's
+  `job_role`, Invoice's `status`, etc.
+- `date_hierarchy` — wherever there's a meaningful timeline (Patient.dob,
+  Employee.hire_date, Visit.start_at, Invoice.issue_date, Payment.payment_date,
+  VisitProcedure.performed_at, VisitDiagnosis.recorded_at).
+- `list_select_related` — on models with FKs that show up in `list_display`,
+  so the change-list page doesn't fire one extra query per row.
+- `raw_id_fields` — on FKs to large tables (Visit's patient/vet, line items'
+  invoice/visit_procedure) to avoid Django rendering a giant `<select>`.
+
+**My changes:** Accepted the structure as-is — it's exactly what the assignment
+asks for. No edits.
+
+**Verification:**
+- `python manage.py check` → no issues, all admin classes registered cleanly.
+- The next visual verification (logging into `/admin/` and confirming each model
+  is listed, then editing a record and seeing the change in Supabase) happens
+  when the Django dev server is run in the Codespace.
